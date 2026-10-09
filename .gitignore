@@ -1,0 +1,5 @@
+data_raw/
+__pycache__/
+*.pyc
+.env
+site/data/status.json

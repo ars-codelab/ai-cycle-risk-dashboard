@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-Cycle Risk Dashboard</title>
+<meta name="description" content="Daily early-warning indicators for an AI-driven market downturn, in plain language.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <div class="wrap bar">
+    <div>
+      <h1>AI-Cycle Risk Dashboard</h1>
+      <p class="sub">Early-warning gauges for an AI-driven market downturn, in plain language.</p>
+    </div>
+    <button id="theme" class="btn" type="button" aria-label="Switch light or dark theme">Theme</button>
+  </div>
+</header>
+<main class="wrap">
+  <div id="stale" class="banner" hidden></div>
+  <section id="overall" class="card hero" aria-live="polite"><p class="muted">Loading latest readings…</p></section>
+
+  <section>
+    <h2>What is moving</h2>
+    <p class="muted lead">Each area groups indicators that share a cause. An area turns yellow or red when any of its gauges does. Tap a row for what it measures.</p>
+    <div id="clusters" class="grid"></div>
+  </section>
+
+  <section>
+    <h2>How it could unfold</h2>
+    <p class="muted lead">Four stories of how a downturn could start. The bar shows how closely today's readings match each one. It is a pattern match, not a forecast.</p>
+    <div id="paths" class="card"></div>
+  </section>
+
+  <section>
+    <h2>Signals combining</h2>
+    <ul id="combos" class="card plain"></ul>
+  </section>
+
+  <section id="ainote" class="card" hidden>
+    <h2>AI-written daily note</h2>
+    <p id="ainote-text"></p>
+    <p class="muted small" id="ainote-meta"></p>
+  </section>
+
+  <section class="card">
+    <h2>How to read this page</h2>
+    <ul class="plain">
+      <li><strong>No one can time a downturn.</strong> Peaks have often looked calm: low fear, strong gains. These gauges are for readiness and for confirming which story is unfolding.</li>
+      <li><strong>Thresholds are drafts.</strong> Most are not validated against history. A yellow is "look", a red is "pay attention", neither is "sell".</li>
+      <li><strong>Stocks used as stand-ins.</strong> Oracle, CoreWeave and Micron stand in for AI-debt and memory-cycle stress because direct credit and memory-price data is paid.</li>
+      <li><strong>Information only.</strong> This is not personal financial advice. Your own plan, tax position and goals decide what to do.</li>
+    </ul>
+    <p class="muted small">Sources: US Treasury, CBOE, ECB, multpl.com, stockanalysis.com. Data can be delayed or revised.</p>
+  </section>
+</main>
+<footer class="wrap muted small"><p id="gen"></p></footer>
+<div id="tip" class="tip" role="tooltip" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>
