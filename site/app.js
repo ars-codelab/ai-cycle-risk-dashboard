@@ -97,7 +97,7 @@
     var hero = document.getElementById("overall");
     hero.textContent = "";
     var row = el("div", "cl-head");
-    row.appendChild(el("h2", null, "Overall: " + o.title));
+    row.appendChild(el("h2", null, "Overall: " + o.title + "  \u00B7  " + level.charAt(0).toUpperCase() + level.slice(1) + " view"));
     row.appendChild(chip(o.status, true, o.title));
     hero.appendChild(row);
 

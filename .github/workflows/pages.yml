@@ -36,6 +36,8 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
         run: python gemini_note.py
+      - name: Cache-bust script and stylesheet (GitHub Pages caches files for 10 minutes)
+        run: sed -i "s/__BUILD__/${GITHUB_SHA::7}-$(date +%s)/g" site/index.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
