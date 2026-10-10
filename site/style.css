@@ -82,3 +82,14 @@ footer{padding:16px 16px 40px}
   svg.spark{width:72px}
   h1{font-size:1.15rem}
 }
+
+.summary{font-size:1.02rem;margin:0}
+.sm-h{font-size:.95rem;margin:6px 0 0;color:var(--text2)}
+
+.ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.seg button{background:var(--btn);color:var(--text);border:0;border-right:1px solid var(--border);padding:8px 12px;font:inherit;cursor:pointer;min-height:40px}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{background:var(--series);color:#fff;font-weight:600}
+.seg button:focus-visible{outline:2px solid var(--series);outline-offset:-2px}
+@media (max-width:560px){.bar{flex-direction:column;align-items:flex-start}.ctl{justify-content:flex-start}}

@@ -14,7 +14,14 @@
       <h1>AI-Cycle Risk Dashboard</h1>
       <p class="sub">Early-warning gauges for an AI-driven market downturn, in plain language.</p>
     </div>
-    <button id="theme" class="btn" type="button" aria-label="Switch light or dark theme">Theme</button>
+    <div class="ctl">
+      <div id="levels" class="seg" role="group" aria-label="Detail level">
+        <button type="button" data-level="beginner" aria-pressed="false">Beginner</button>
+        <button type="button" data-level="medium" aria-pressed="true">Medium</button>
+        <button type="button" data-level="expert" aria-pressed="false">Expert</button>
+      </div>
+      <button id="theme" class="btn" type="button" aria-label="Switch light or dark theme">Theme</button>
+    </div>
   </div>
 </header>
 <main class="wrap">
@@ -23,7 +30,7 @@
 
   <section>
     <h2>What is moving</h2>
-    <p class="muted lead">Each area groups indicators that share a cause. An area turns yellow or red when any of its gauges does. Tap a row for what it measures.</p>
+    <p class="muted lead">Each area groups indicators that share a cause. An area turns yellow or red when any of its gauges does. Use the Beginner / Medium / Expert switch at the top to change the language and detail.</p>
     <div id="clusters" class="grid"></div>
   </section>
 
@@ -36,12 +43,6 @@
   <section>
     <h2>Signals combining</h2>
     <ul id="combos" class="card plain"></ul>
-  </section>
-
-  <section id="ainote" class="card" hidden>
-    <h2>AI-written daily note</h2>
-    <p id="ainote-text"></p>
-    <p class="muted small" id="ainote-meta"></p>
   </section>
 
   <section class="card">

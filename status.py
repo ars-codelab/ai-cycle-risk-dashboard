@@ -86,6 +86,47 @@ INDICATORS = [
          what="Stock prices divided by 10 years of average earnings. High values have meant lower returns later and bigger drops, but with poor timing.",
          g="Valuations are not extreme.", ye="Valuations are expensive (30+).", re="Valuations are near record territory (40+). It raises the size of a fall, not its date."),
 ]
+# Two extra explanations per indicator: (beginner, expert)
+LEVEL_WHAT = {
+    "y10": ("The interest rate the US government pays to borrow money for 10 years. When it is high, borrowing gets expensive for everyone.",
+            "UST 10Y constant-maturity yield; sets discount rates for equities and long-duration credit. 5.25 / 5.50 are scenario cut-offs, not validated."),
+    "y10_chg": ("How fast that interest rate has gone up in the last six months. Fast rises are harder on markets than slow ones.",
+                "6-month change in the 10Y yield (126 trading days). +100bp in 6m fired on about 5% of days since 1990 with weak standalone lift."),
+    "tlt": ("The price of long-term government bonds. If it falls, lenders are asking for more interest to lend for a long time.",
+            "TLT 63-day return as a proxy for long-end / term-premium repricing. Watch for equity-bond correlation turning positive (2022 regime)."),
+    "curve": ("Compares what the government pays on short loans and long loans. When short rates are higher it is called inverted; history says the flip back to normal is a warning sign.",
+              "10Y minus 3M slope; flag = un-inverted within 6m after being below zero. 1990-2026 sample: about 2.7x conditional odds of a 20% drawdown within 12m, 10 episodes, high false-alarm rate."),
+    "vix": ("A number showing how nervous investors are about the next month. Higher means more fear.",
+            "CBOE VIX (30-day S&P 500 implied vol). Mostly coincident with equity drawdowns; seven bear peaks since 1990 occurred at VIX 12-23."),
+    "vix_jump": ("How quickly that fear number has gone up over the last month.",
+                 "20-trading-day % change in VIX; +60% had about 1.6x lift in the 1990-2026 sample."),
+    "spy_dd": ("How far the whole US stock market has fallen from its highest point in the last six months.",
+               "SPY drawdown from the 126-day high. Confirmation variable (coincident in the study)."),
+    "usdjpy": ("How much the yen has gained or lost against the dollar over the last month. Sudden yen jumps have forced investors to sell other things.",
+               "USD/JPY (ECB cross) 20-day change; carry-unwind proxy. Aug-2024 reference: about -12% in a month. Negative = yen strength."),
+    "smh": ("How far the shares of big chip companies have fallen from their recent peak. Chips are where AI spending shows up first.",
+            "SMH drawdown from the 126-day high; AI-capex beta proxy."),
+    "mu": ("How far a major computer-memory maker's shares have fallen from their recent peak. Memory is often the first to feel a slowdown.",
+           "MU drawdown from the 126-day high; stand-in for the DRAM/HBM contract-price and inventory cycle (paid data not available here)."),
+    "orcl": ("How far Oracle's shares have fallen. Oracle is borrowing heavily to build AI data centers, so its share price reflects worry about that debt.",
+             "ORCL drawdown from the 126-day high; proxy for AI-capex debt stress (capex/OCF about 1.8-2.0x per Gemini report; CDS is paid data)."),
+    "crwv": ("How far CoreWeave's shares have fallen. It rents out AI computing and is funded with expensive debt, so it works like a canary in a coal mine.",
+             "CRWV drawdown from the 126-day high; high-beta neocloud credit proxy (GPU-backed financing)."),
+    "hyg_ief": ("Compares the price of riskier company bonds with safe government bonds. If the risky ones fall behind, lenders are getting nervous.",
+                "HYG/IEF ratio vs its 63-day high; spread proxy because ICE BofA HY OAS is not available in the free feed."),
+    "rspspy": ("Compares the average stock with the biggest stocks. If the average stock lags, the market is leaning on a few giants.",
+               "RSP/SPY 20-day change; equal-weight vs cap-weight breadth. Concentration is high (top-10 weight about 39% per Gemini report)."),
+    "cape": ("How expensive stocks are compared with their long-run profits. It says how big a fall could be, not when.",
+             "Shiller CAPE (multpl.com). At 30+ the lift for a 20% drawdown within 12m was about 1.7x (1926-2025); poor timing."),
+}
+SHORT = {"y10": "10Y", "y10_chg": "10Y 6m chg", "tlt": "TLT 3m", "curve": "10Y-3M", "vix": "VIX", "vix_jump": "VIX 20d",
+         "spy_dd": "SPY vs 6m high", "usdjpy": "USDJPY 20d", "smh": "SMH", "mu": "MU", "orcl": "ORCL", "crwv": "CRWV",
+         "hyg_ief": "HYG/IEF", "rspspy": "RSP/SPY 20d", "cape": "CAPE"}
+BEGINNER_STATUS = {"green": "Nothing worrying here.", "yellow": "Worth keeping an eye on.", "red": "This is where the pressure is highest."}
+BEGINNER_AREA = {"AI financing": "companies that borrowed a lot to build AI", "AI chain": "the chip and memory makers",
+                 "Rates": "interest rates", "Curve": "the shape of interest rates", "Market stress": "how scared investors are",
+                 "Yen / funding": "the Japanese yen", "Breadth": "whether only a few giant companies are carrying the market"}
+
 BYID = {i["id"]: i for i in INDICATORS}
 MEANING_NEUTRAL = "Data unavailable right now."
 
@@ -190,6 +231,85 @@ def compute(d):
     return out
 
 
+PREV = RAW / "previous_status.json"
+OVERALL_PLAIN = {
+    "normal": "Nothing unusual is flashing right now.",
+    "prepare": "Some stress is building in parts of the market, but the market as a whole has not broken.",
+    "accelerate": "Several independent warning areas are red at the same time.",
+}
+
+
+def previous():
+    try:
+        return json.loads(PREV.read_text())
+    except Exception:
+        return None
+
+
+def plain_summary(overall, clus, items, paths, changes):
+    """Deterministic 'in plain words' paragraph. Used on the page when no AI note is available or the AI note fails checks."""
+    lines = [OVERALL_PLAIN[overall]]
+    reds = [i for i in items if i["status"] == "red" and i["cluster"] != "Background"]
+    yels = [i for i in items if i["status"] == "yellow"]
+    if reds:
+        areas = sorted({i["cluster"] for i in reds})
+        lines.append("The loudest warning is in " + " and ".join(areas) + ". " + " ".join(i["meaning"] for i in reds[:2]))
+    watch = sorted({i["cluster"] for i in yels} - {i["cluster"] for i in reds})
+    if watch:
+        lines.append("Also worth watching: " + ", ".join(watch) + " (each is yellow: not alarming alone, but moving the wrong way).")
+    top = paths[0] if paths else None
+    if top and top["score"] >= 2:
+        lines.append(f"The pattern most like today is the \"{top['name']}\" story: {top['story']}")
+    lines.append("This does not say when, or whether, a fall will happen. Past market peaks have often looked calm, so the point of this page "
+                 "is to be ready and to see which story is unfolding, not to guess a date.")
+    if changes:
+        lines.append("Since the last update: " + "; ".join(changes[:3]) + ".")
+    return "\n".join(lines)
+
+
+def beginner_summary(overall, clus, items, paths, changes):
+    first = {"normal": "Nothing looks worrying right now.",
+             "prepare": "The market as a whole looks fine, but some of the pieces of the AI boom are under pressure, and that is usually where trouble shows up first.",
+             "accelerate": "Several different warning signs are flashing at the same time, which is unusual."}[overall]
+    reds = sorted({i["cluster"] for i in items if i["status"] == "red" and i["cluster"] != "Background"})
+    yels = sorted({i["cluster"] for i in items if i["status"] == "yellow"} - set(reds))
+    L = [first]
+    if reds:
+        L.append("The biggest worry is " + " and ".join(BEGINNER_AREA.get(r, r) for r in reds) + ".")
+    if yels:
+        L.append("Smaller warning signs: " + ", ".join(BEGINNER_AREA.get(y, y) for y in yels) + ".")
+    L.append("This does not mean a crash is coming, and nobody can say when one would start. It means this is a good time to make sure you are ready, not a time to panic.")
+    if changes:
+        L.append("What changed since last time: " + "; ".join(changes[:2]) + ".")
+    return "\n".join(L)
+
+
+def expert_summary(overall, clus, items, paths, changes, counts):
+    def f(i):
+        v = i.get("value")
+        u = i.get("unit", "")
+        sfx = {"%": "%", "pts": "pp", "x": "x"}.get(u, "")
+        tag = SHORT.get(i["id"], i["id"].upper())
+        return f"{tag} {v:+.{i['dp']}f}{sfx}" if v is not None else tag
+    L = [f"State: {overall.upper()} ({counts['red']} red, {counts['yellow']} yellow, {counts['green']} green clusters)."]
+    for st_, name in (("red", "Red"), ("yellow", "Yellow")):
+        grp = {}
+        for i in items:
+            if i["status"] == st_ and i["cluster"] != "Background":
+                grp.setdefault(i["cluster"], []).append(f(i))
+        if grp:
+            L.append(f"{name}: " + "; ".join(f"{c} ({', '.join(v)})" for c, v in grp.items()) + ".")
+    cape = next((i for i in items if i["id"] == "cape" and i.get("value") is not None), None)
+    if cape:
+        L.append(f"Background: CAPE {cape['value']:.1f}x (context only, not in the action rule).")
+    if paths:
+        L.append("Pattern match: " + ", ".join(f"{p['name']} {p['score']}/{p['max']}" for p in paths[:2]) + ".")
+    L.append("Caveats: thresholds unvalidated; free proxies replace HY OAS, CDS and DRAM/HBM prices; lights are coincident-to-late more often than leading.")
+    if changes:
+        L.append("Delta: " + "; ".join(changes[:3]) + ".")
+    return "\n".join(L)
+
+
 def classify(ind, rec):
     if ind["dir"] == "flag":
         return "yellow" if rec["note"] == "flip" else "green"
@@ -207,7 +327,8 @@ def build():
         rec = vals.get(ind["id"])
         if rec is None:
             items.append(dict(id=ind["id"], label=ind["label"], cluster=ind["cluster"], status="na", meaning=MEANING_NEUTRAL,
-                              what=ind["what"], src=ind["src"], unit=ind["unit"], dp=ind["dp"]))
+                              meaning_b=MEANING_NEUTRAL, meaning_x=MEANING_NEUTRAL, what=ind["what"], what_b=LEVEL_WHAT[ind["id"]][0],
+                              what_x=LEVEL_WHAT[ind["id"]][1], src=ind["src"], unit=ind["unit"], dp=ind["dp"]))
             continue
         st = classify(ind, rec)
         meaning = ind["g"] if st == "green" else (ind["ye"] if st == "yellow" else (ind["re"] or ind["ye"]))
@@ -215,6 +336,8 @@ def build():
               f"{'at or above' if ind['dir']=='up' else 'at or below'} {ind['y']:g} (watch) / {ind['r']:g} (alert)")
         items.append(dict(id=ind["id"], label=ind["label"], cluster=ind["cluster"], unit=ind["unit"], dp=ind["dp"], value=round(rec["value"], 4),
                           asof=rec["asof"].strftime("%Y-%m-%d"), status=st, threshold=th, meaning=meaning, what=ind["what"], src=ind["src"],
+                          meaning_b=BEGINNER_STATUS[st], meaning_x=f"{st.upper()} vs thresholds {th}.",
+                          what_b=LEVEL_WHAT[ind["id"]][0], what_x=LEVEL_WHAT[ind["id"]][1],
                           note=rec["note"], series=rec["series"]))
         if ind["cluster"] != "Background":
             c = ind["cluster"]
@@ -240,28 +363,61 @@ def build():
     paths.sort(key=lambda p: -p["score"])
     # rules that combine signals
     s = {k: v for k, v in clus.items()}
-    combos = []
+    combos, combos_b, combos_x = [], [], []
+
+    def add(med, beg, exp):
+        combos.append(med); combos_b.append(beg); combos_x.append(exp)
     if s.get("AI financing") == "red" and s.get("Market stress", "green") == "green":
-        combos.append("Stress is concentrated in leveraged AI borrowers while the broad market is calm. Historically, market peaks looked calm; this is an early-stage pattern, not proof of a fall.")
+        add("Stress is concentrated in leveraged AI borrowers while the broad market is calm. Historically, market peaks looked calm; this is an early-stage pattern, not proof of a fall.",
+            "A few companies that borrowed a lot for AI are under pressure, but the overall market is calm. Past market peaks also looked calm, so this is a reason to be ready, not a reason to panic.",
+            "AI-financing red with market-stress green: idiosyncratic credit stress ahead of index confirmation. Peaks in the sample (1990-2026) printed at VIX 12-23.")
     if s.get("AI financing") == "red" and s.get("AI chain") in ("yellow", "red"):
-        combos.append("Stress at AI borrowers is reaching the chip and memory suppliers. That is how a financing crack spreads.")
+        add("Stress at AI borrowers is reaching the chip and memory suppliers. That is how a financing crack spreads.",
+            "The worry about AI borrowers is starting to reach the companies that sell chips and memory to them.",
+            "AI-financing red with AI-chain >= yellow: contagion from borrowers to suppliers (path B: financing crack).")
     if s.get("Rates") in ("yellow", "red") and s.get("AI financing") in ("yellow", "red"):
-        combos.append("Higher rates and weak AI borrowers together make refinancing harder for heavily indebted AI projects.")
+        add("Higher rates and weak AI borrowers together make refinancing harder for heavily indebted AI projects.",
+            "Rising interest rates make it harder for the heavily indebted AI companies to keep borrowing.",
+            "Rates >= yellow with AI-financing >= yellow: refinancing channel; watch HYG/IEF and 10Y vs 5.25 / 5.50.")
     if s.get("Curve") == "yellow":
-        combos.append("The yield curve has just turned positive after an inversion. In 1990-2026 that was the strongest single warning, with many false alarms.")
+        add("The yield curve has just turned positive after an inversion. In 1990-2026 that was the strongest single warning, with many false alarms.",
+            "A particular pattern in interest rates that has often come before downturns has just appeared. It also gave many false alarms.",
+            "10Y-3M un-inverted within 6m: 2.7x conditional odds in the 1990-2026 sample, 10 episodes, 7 followed by a 15% drop.")
     if s.get("Yen / funding") in ("yellow", "red"):
-        combos.append("The yen is moving fast. Funding shocks are quick and can partly reverse; do not act on one day's move.")
+        add("The yen is moving fast. Funding shocks are quick and can partly reverse; do not act on one day's move.",
+            "The Japanese yen is moving quickly. These jumps are fast and often partly reverse, so one day's move is not a signal to act.",
+            "USDJPY 20d change beyond threshold: carry-unwind risk; typically fast and partially mean-reverting (Aug 2024).")
     if s.get("Market stress") == "red" and nred + nyel >= 3:
-        combos.append("Broad stress with several areas warning: the move may already be under way. Follow your pre-agreed steps, not the headlines.")
+        add("Broad stress with several areas warning: the move may already be under way. Follow your pre-agreed steps, not the headlines.",
+            "Many warning signs and a falling market at once: the move may already be under way. Follow the steps you decided in advance, not the headlines.",
+            "Market-stress red with 3+ clusters non-green: broad risk-off; execute pre-agreed rules.")
     if not combos:
-        combos.append("No combination of warnings is active.")
+        add("No combination of warnings is active.", "No combination of warning signs is active.", "No cross-cluster combination rule fired.")
+    prev = previous()
+    changes = []
+    if prev:
+        pm = {i["id"]: i.get("status") for i in prev.get("items", [])}
+        for it in items:
+            o_ = pm.get(it["id"])
+            if o_ and o_ != it["status"] and it["status"] != "na" and o_ != "na":
+                changes.append(f"{it['label']} moved from {o_} to {it['status']}")
+        if prev.get("overall") and prev["overall"] != overall:
+            changes.insert(0, f"the overall state moved from {prev['overall']} to {overall}")
+    summary_rules = plain_summary(overall, clus, items, paths, changes)
+    counts_ = dict(red=nred, yellow=nyel, green=sum(1 for v in clus.values() if v == "green"))
+    summary_levels = {
+        "beginner": dict(text=beginner_summary(overall, clus, items, paths, changes), source="rules"),
+        "medium": dict(text=summary_rules, source="rules"),
+        "expert": dict(text=expert_summary(overall, clus, items, paths, changes, counts_), source="rules"),
+    }
     now = dt.datetime.now(dt.timezone.utc)
     asofs = [i["asof"] for i in items if i.get("asof")]
     newest = max(asofs) if asofs else None
     stale_days = (now.date() - dt.date.fromisoformat(newest)).days if newest else None
     return dict(generated=now.strftime("%Y-%m-%d %H:%M UTC"), newest_data=newest, stale_days=stale_days,
                 overall=overall, clusters={k: dict(status=clus.get(k, "na"), blurb=v) for k, v in CLUSTERS.items() if k != "Background" or True},
-                items=items, paths=paths, combos=combos, ai_note=None,
+                items=items, paths=paths, combos=combos, combos_levels=dict(beginner=combos_b, medium=combos, expert=combos_x), ai_note=None, changes=changes,
+                summary=summary_levels["medium"], summary_levels=summary_levels, summary_rules=summary_rules,
                 counts=dict(red=nred, yellow=nyel, green=sum(1 for v in clus.values() if v == "green")))
 
 

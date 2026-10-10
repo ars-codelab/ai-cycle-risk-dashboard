@@ -2,20 +2,34 @@
   "use strict";
   var ICON = { green: "✓", yellow: "▲", red: "●", na: "–" };
   var LABEL = { green: "OK", yellow: "Watch", red: "Alert", na: "No data" };
+  var LEVELS = ["beginner", "medium", "expert"];
   var OVERALL = {
     normal: { title: "Normal", status: "green",
       text: "Nothing unusual is flashing. Stay on your plan's schedule and do not act on daily noise.",
-      acts: ["Keep your scheduled steps.", "Check once a day at most; most days nothing changes."] },
+      acts: ["Keep your scheduled steps.", "Check once a day at most; most days nothing changes."],
+      actsB: ["Nothing to do today.", "You do not need to check this every day."],
+      actsX: ["No rule fired. Maintain schedule.", "Review thresholds at quarter-end."] },
     prepare: { title: "Prepare", status: "yellow",
       text: "Stress is building in parts of the market. Treat this as a prompt to check readiness, not a reason to rush.",
       acts: ["Confirm your next planned step and that cash is where you want it.",
              "Re-read your written rules now, while markets are calm.",
-             "Watch whether more areas turn yellow or red."] },
+             "Watch whether more areas turn yellow or red."],
+      actsB: ["Make sure you know your plan and where your cash is.", "Do not make big changes because of this page alone.",
+              "Look again in a few days to see if more warnings appear."],
+      actsX: ["Confirm next scheduled step and funding of the cash sleeve.",
+              "Pre-commit escalation: second cluster red, or SPY more than 10% below its high.",
+              "Monitor HYG/IEF, MU and 10Y vs 5.25 / 5.50 for confirmation."] },
     accelerate: { title: "Move faster", status: "red",
       text: "Several independent warning areas are red together, or a red area is joined by a market correction. Your rules call for the faster setting.",
       acts: ["Do the remaining planned steps sooner.", "Stop adding to the most AI-heavy holdings.",
-             "Keep your buy-in rules for the cash you hold; they are separate from these warnings."] }
+             "Keep your buy-in rules for the cash you hold; they are separate from these warnings."],
+      actsB: ["Several warnings are on at once, so your plan says to move faster.", "Do the steps you already planned, sooner.",
+              "Keep following your plan, not the news."],
+      actsX: ["Escalation rule met: execute remaining steps ahead of schedule.", "Hold buy-in tranches on price triggers, independent of these lights.",
+              "Park proceeds in T-bills promptly."] }
   };
+  var level = "medium";
+  var data = null;
 
   function el(tag, cls, text) {
     var e = document.createElement(tag);
@@ -72,6 +86,11 @@
     svg.addEventListener("pointerleave", function () { tip.hidden = true; });
     return svg;
   }
+  function pick(it, base) {
+    if (level === "beginner" && it[base + "_b"]) return it[base + "_b"];
+    if (level === "expert" && it[base + "_x"]) return it[base + "_x"];
+    return it[base];
+  }
 
   function render(s) {
     var o = OVERALL[s.overall] || OVERALL.normal;
@@ -81,22 +100,37 @@
     row.appendChild(el("h2", null, "Overall: " + o.title));
     row.appendChild(chip(o.status, true, o.title));
     hero.appendChild(row);
-    hero.appendChild(el("p", null, o.text));
+
+    var sl = s.summary_levels && s.summary_levels[level] ? s.summary_levels[level] : (s.summary || { text: o.text, source: "rules" });
+    sl.text.split("\n").forEach(function (para) {
+      para = para.trim();
+      if (!para) return;
+      var m = para.match(/^(Bottom line:|Why:|What this does not mean:|What to watch:)\s*(.*)$/);
+      var p = el("p", "summary");
+      if (m) { p.appendChild(el("strong", null, m[1] + " ")); p.appendChild(document.createTextNode(m[2])); }
+      else p.textContent = para;
+      hero.appendChild(p);
+    });
+    var src = sl.source === "gemini"
+      ? "Written by " + sl.model + " on " + sl.when + " from the readings below, for the " + level + " level. It can be wrong. The traffic lights come from fixed rules, not from this text."
+      : "Summary built from fixed rules and the readings below (" + level + " level).";
+    hero.appendChild(el("p", "muted small", src));
+    hero.appendChild(el("h3", "sm-h", "What this suggests for today"));
     var ul = el("ul", "plain");
-    o.acts.forEach(function (a) { ul.appendChild(el("li", null, a)); });
+    var acts = level === "beginner" ? o.actsB : (level === "expert" ? o.actsX : o.acts);
+    acts.forEach(function (a) { ul.appendChild(el("li", null, a)); });
     hero.appendChild(ul);
     hero.appendChild(el("p", "muted small", "Areas: " + s.counts.red + " red, " + s.counts.yellow + " yellow, " + s.counts.green + " green. Newest data: " + (s.newest_data || "n/a") + "."));
 
+    var stale = document.getElementById("stale");
     if (s.stale_days !== null && s.stale_days > 4) {
-      var b = document.getElementById("stale");
-      b.hidden = false;
-      b.textContent = "This page has not refreshed for " + s.stale_days + " days. Do not rely on it until it updates.";
-    }
+      stale.hidden = false;
+      stale.textContent = "This page has not refreshed for " + s.stale_days + " days. Do not rely on it until it updates.";
+    } else { stale.hidden = true; }
 
     var host = document.getElementById("clusters");
     host.textContent = "";
-    var order = Object.keys(s.clusters);
-    order.forEach(function (name) {
+    Object.keys(s.clusters).forEach(function (name) {
       var items = s.items.filter(function (i) { return i.cluster === name; });
       if (!items.length) return;
       var c = s.clusters[name];
@@ -117,11 +151,14 @@
         var tr = el("tr");
         var td = el("td");
         td.appendChild(el("span", "name", it.label));
-        td.appendChild(el("span", "mean", it.meaning));
+        td.appendChild(el("span", "mean", pick(it, "meaning")));
         var det = el("details");
-        det.appendChild(el("summary", null, "What this measures"));
-        det.appendChild(el("p", null, it.what));
-        det.appendChild(el("p", "muted", "Draft thresholds: " + (it.threshold || "n/a") + ". Source: " + it.src + (it.asof ? ", as of " + it.asof : "") + "."));
+        if (level === "expert") det.open = true;
+        det.appendChild(el("summary", null, level === "expert" ? "Definition, thresholds, source" : "What this measures"));
+        det.appendChild(el("p", null, pick(it, "what")));
+        if (level !== "beginner") {
+          det.appendChild(el("p", "muted", "Draft thresholds: " + (it.threshold || "n/a") + ". Source: " + it.src + (it.asof ? ", as of " + it.asof : "") + "."));
+        }
         td.appendChild(det);
         tr.appendChild(td);
         var v = el("td", "num", fmt(it));
@@ -144,30 +181,48 @@
       var d = el("div", "path");
       var top = el("div", "path-top");
       top.appendChild(el("b", null, p.name));
-      top.appendChild(el("span", "muted small", "match " + p.score + " of " + p.max));
+      var ratio = p.max ? p.score / p.max : 0;
+      var word = ratio >= 0.7 ? "Strong match" : (ratio >= 0.35 ? "Partial match" : "Little match");
+      top.appendChild(el("span", "muted small", level === "expert" ? "score " + p.score + " / " + p.max : word));
       d.appendChild(top);
       var m = el("div", "meter");
       m.setAttribute("role", "img");
-      m.setAttribute("aria-label", p.name + " match " + p.score + " of " + p.max);
+      m.setAttribute("aria-label", p.name + ": " + word);
       var n = Math.max(4, Math.round(p.max * 2));
       var on = Math.round(p.score * 2);
       for (var k = 0; k < n; k++) m.appendChild(el("i", k < on ? "on" : ""));
       d.appendChild(m);
-      d.appendChild(el("div", "muted small", p.story + (p.drivers.length ? " Active now: " + p.drivers.join(", ") + "." : "")));
+      if (level !== "expert") {
+        d.appendChild(el("div", "muted small", p.story + (p.drivers.length ? " Active now: " + p.drivers.join(", ") + "." : "")));
+      } else if (p.drivers.length) {
+        d.appendChild(el("div", "muted small", "Active: " + p.drivers.join(", ")));
+      }
       ph.appendChild(d);
     });
 
     var cb = document.getElementById("combos");
     cb.textContent = "";
-    s.combos.forEach(function (t) { cb.appendChild(el("li", null, t)); });
-
-    if (s.ai_note && s.ai_note.text) {
-      document.getElementById("ainote").hidden = false;
-      document.getElementById("ainote-text").textContent = s.ai_note.text;
-      document.getElementById("ainote-meta").textContent = "Written by " + s.ai_note.model + " on " + s.ai_note.when + " from the readings above. It can be wrong; the traffic lights come from fixed rules, not from this note.";
-    }
+    var cl = (s.combos_levels && s.combos_levels[level]) || s.combos;
+    cl.forEach(function (t) { cb.appendChild(el("li", null, t)); });
     document.getElementById("gen").textContent = "Generated " + s.generated + ". Rules are fixed and published in the repository.";
   }
+
+  function setLevel(l, noRender) {
+    if (LEVELS.indexOf(l) < 0) l = "medium";
+    level = l;
+    document.documentElement.setAttribute("data-level", l);
+    Array.prototype.forEach.call(document.querySelectorAll("#levels button"), function (b) {
+      b.setAttribute("aria-pressed", b.getAttribute("data-level") === l ? "true" : "false");
+    });
+    try { localStorage.setItem("level", l); } catch (e) {}
+    if (!noRender && data) render(data);
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#levels button"), function (b) {
+    b.addEventListener("click", function () { setLevel(b.getAttribute("data-level")); });
+  });
+  var savedLevel = "medium";
+  try { savedLevel = localStorage.getItem("level") || "medium"; } catch (e) {}
+  setLevel(savedLevel, true);
 
   var btn = document.getElementById("theme");
   btn.addEventListener("click", function () {
@@ -182,7 +237,7 @@
   fetch("data/status.json", { cache: "no-store" }).then(function (r) {
     if (!r.ok) throw new Error(r.status);
     return r.json();
-  }).then(render).catch(function () {
+  }).then(function (s) { data = s; render(s); }).catch(function () {
     var h = document.getElementById("overall");
     h.textContent = "";
     h.appendChild(el("p", null, "Latest readings could not be loaded. Try again later."));

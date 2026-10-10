@@ -27,11 +27,14 @@ jobs:
       - run: pip install -r requirements.txt
       - name: Fetch public data
         run: python fetch_data.py
+      - name: Fetch previous status (to describe what changed)
+        run: curl -sf "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/data/status.json" -o data_raw/previous_status.json || true
       - name: Compute status
         run: python status.py
-      - name: Optional AI note (skipped if no secret)
+      - name: Optional AI summary (skipped if no secret; rule-based summary stays on any failure)
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL || 'gemini-3.8-flash' }}
         run: python gemini_note.py
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
